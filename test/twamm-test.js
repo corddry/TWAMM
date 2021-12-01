@@ -13,7 +13,7 @@ describe("TWAMM", function () {
     let addr2;
     let addrs;
 
-    const blockInterval = 10;
+    const blockInterval = 500;
 
     const initialLiquidityProvided = 100000000;
     const ERC20Supply = ethers.utils.parseUnits("100"); 
