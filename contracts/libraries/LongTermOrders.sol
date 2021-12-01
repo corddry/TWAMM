@@ -5,6 +5,7 @@ import "hardhat/console.sol";
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "prb-math/contracts/PRBMathSD59x18.sol";
 import "./OrderPool.sol";
+import "hardhat/console.sol";
 
 
 ///@notice This library handles the state and execution of long term orders. 
@@ -80,6 +81,9 @@ library LongTermOrdersLib {
         uint256 lastExpiryBlock = currentBlock - (currentBlock % self.orderBlockInterval);
         uint256 orderExpiry = self.orderBlockInterval * (numberOfBlockIntervals + 1) + lastExpiryBlock;
         uint256 sellingRate = amount / (orderExpiry - currentBlock);
+        
+        uint256 sRateDecimal = (amount * 1000 / (orderExpiry - currentBlock)) % 1000; //First 3 digits of decimal to circumnavigate no floating point type
+        console.log("  sellingRate pre-cast: %d.%d, post-cast %d", sellingRate, sRateDecimal, sellingRate);
 
         //add order to correct pool
         OrderPoolLib.OrderPool storage OrderPool = self.OrderPoolMap[from];
