@@ -2,7 +2,7 @@ const { expect } = require("chai");
 const { ethers } = require("hardhat");
 
 describe("TWAMM", function () {
-   
+
     let tokenA;
     let tokenB;
 
@@ -16,10 +16,10 @@ describe("TWAMM", function () {
     const blockInterval = 500;
 
     const initialLiquidityProvided = 100000000;
-    const ERC20Supply = ethers.utils.parseUnits("100"); 
-    
+    const ERC20Supply = ethers.utils.parseUnits("100");
+
     beforeEach(async function () {
-        
+
         await network.provider.send("evm_setAutomine", [true]);
         [owner, addr1, addr2, ...addrs] = await ethers.getSigners();
 
@@ -30,7 +30,7 @@ describe("TWAMM", function () {
         const TWAMMFactory = await ethers.getContractFactory("TWAMM")
 
         twamm = await TWAMMFactory.deploy(
-              "TWAMM" 
+              "TWAMM"
             , "TWAMM"
             , tokenA.address
             , tokenB.address
@@ -62,20 +62,24 @@ describe("TWAMM", function () {
             });
 
             it("LP token value is constant after mint", async function () {
-                
+
                 let totalSupply = await twamm.totalSupply();
-                
+
                 let tokenAReserve = await twamm.tokenAReserves();
                 let tokenBReserve = await twamm.tokenBReserves();
 
                 const initialTokenAPerLP = tokenAReserve / totalSupply;
                 const initialTokenBPerLP = tokenBReserve / totalSupply;
 
-                const newLPTokens = 10000;
-                await twamm.provideLiquidity(newLPTokens);
+                const newLPTokens = 1000000;
+                //Provide liquidity fails due to frontunning protection
+                await expect(twamm.provideLiquidity(newLPTokens,initialTokenAPerLP*newLPTokens+1,initialTokenBPerLP*newLPTokens+1)).to.be.revertedWith("insufficient number of tokens to provide");
+
+                //Providing liquidity succeeds
+                await twamm.provideLiquidity(newLPTokens,initialTokenAPerLP*newLPTokens,initialTokenBPerLP*newLPTokens);
 
                 totalSupply = await twamm.totalSupply();
-                
+
                 tokenAReserve = await twamm.tokenAReserves();
                 tokenBReserve = await twamm.tokenBReserves();
 
@@ -90,9 +94,9 @@ describe("TWAMM", function () {
         describe("Removing Liquidity", function () {
 
             it("LP token value is constant after removing", async function () {
-                
+
                 let totalSupply = await twamm.totalSupply();
-                
+
                 let tokenAReserve = await twamm.tokenAReserves();
                 let tokenBReserve = await twamm.tokenBReserves();
 
@@ -100,10 +104,15 @@ describe("TWAMM", function () {
                 const initialTokenBPerLP = tokenBReserve / totalSupply;
 
                 const liquidityToRemove = initialLiquidityProvided / 2;
-                await twamm.removeLiquidity(liquidityToRemove);
+
+                //Remove liquidity fails due to frontunning protection
+                await expect(twamm.removeLiquidity(liquidityToRemove,1+tokenAReserve/2,1+tokenBReserve/2)).to.be.revertedWith("insufficient number of tokens out");
+
+                //Remove liquidity succeeds
+                await twamm.removeLiquidity(liquidityToRemove,tokenAReserve/2,tokenBReserve/2);
 
                 totalSupply = await twamm.totalSupply();
-                
+
                 tokenAReserve = await twamm.tokenAReserves();
                 tokenBReserve = await twamm.tokenBReserves();
 
@@ -115,15 +124,15 @@ describe("TWAMM", function () {
             });
 
             it("can't remove more than available liquidity", async function () {
-                
+
                 let totalSupply = await twamm.totalSupply();
-                
+
                 const liquidityToRemove = initialLiquidityProvided * 2;
 
 
                 await expect(
-                    twamm.removeLiquidity(liquidityToRemove)
-                ).to.be.revertedWith('not enough lp tokens available');                
+                    twamm.removeLiquidity(liquidityToRemove,0,0)
+                ).to.be.revertedWith('not enough lp tokens available');
             });
         });
 
@@ -134,7 +143,7 @@ describe("TWAMM", function () {
                 const amountInA = ethers.utils.parseUnits("1");
                 const tokenAReserve = await twamm.tokenAReserves();
                 const tokenBReserve = await twamm.tokenBReserves();
-                const expectedOutBeforeFees = 
+                const expectedOutBeforeFees =
                     tokenBReserve
                         .mul(amountInA)
                         .div(tokenAReserve.add(amountInA));
@@ -143,29 +152,35 @@ describe("TWAMM", function () {
                 const expectedOutput = expectedOutBeforeFees.mul(1000 - 3).div(1000);
 
                 const beforeBalanceB = await tokenB.balanceOf(owner.address);
-                await twamm.swapFromAToB(amountInA);
+
+                // Swap fails due to frontrunning protection
+                await expect(twamm.swapFromAToB(amountInA,expectedOutput+1)).to.be.revertedWith("insufficient number of tokens out");
+
+                // Swap succeeds
+                await twamm.swapFromAToB(amountInA,expectedOutput);
                 const afterBalanceB = await tokenB.balanceOf(owner.address);
                 const actualOutput = afterBalanceB.sub(beforeBalanceB);
 
                 expect(actualOutput).to.eq(expectedOutput);
-            
+
             });
         });
+
     });
 
     describe("TWAMM Functionality ", function () {
-        
+
         describe("Long term swaps", function () {
 
             it("Single sided long term order behaves like normal swap", async function () {
 
-                const amountInA = 10000; 
+                const amountInA = 10000000;
                 await tokenA.transfer(addr1.address, amountInA);
-                
+
                 //expected output
                 const tokenAReserve = await twamm.tokenAReserves();
                 const tokenBReserve = await twamm.tokenBReserves();
-                const expectedOut = 
+                const expectedOut =
                     tokenBReserve
                         .mul(amountInA)
                         .div(tokenAReserve.add(amountInA));
@@ -173,20 +188,20 @@ describe("TWAMM", function () {
                 //trigger long term order
                 tokenA.connect(addr1).approve(twamm.address, amountInA);
                 await twamm.connect(addr1).longTermSwapFromAToB(amountInA, 2)
-                
+
                 //move blocks forward, and execute virtual orders
                 await mineBlocks(3 * blockInterval)
                 await twamm.executeVirtualOrders();
 
-                //withdraw proceeds 
+                //withdraw proceeds
                 const beforeBalanceB = await tokenB.balanceOf(addr1.address);
                 await twamm.connect(addr1).withdrawProceedsFromLongTermSwap(0);
                 const afterBalanceB = await tokenB.balanceOf(addr1.address);
                 const actualOutput = afterBalanceB.sub(beforeBalanceB);
 
                 //since we are breaking up order, match is not exact
-                expect(actualOutput).to.be.closeTo(expectedOut, ethers.utils.parseUnits('100', 'wei'));                
-            
+                expect(actualOutput).to.be.closeTo(expectedOut, ethers.utils.parseUnits('10000', 'wei'));
+
             });
 
             it("Orders in both pools work as expected", async function () {
@@ -194,7 +209,7 @@ describe("TWAMM", function () {
                 const amountIn = ethers.BigNumber.from(10000);
                 await tokenA.transfer(addr1.address, amountIn);
                 await tokenB.transfer(addr2.address, amountIn);
-                
+
                 //trigger long term order
                 await tokenA.connect(addr1).approve(twamm.address, amountIn);
                 await tokenB.connect(addr2).approve(twamm.address, amountIn);
@@ -207,7 +222,7 @@ describe("TWAMM", function () {
                 await mineBlocks(3 * blockInterval)
                 await twamm.executeVirtualOrders();
 
-                //withdraw proceeds 
+                //withdraw proceeds
                 await twamm.connect(addr1).withdrawProceedsFromLongTermSwap(0);
                 await twamm.connect(addr2).withdrawProceedsFromLongTermSwap(1);
 
@@ -216,13 +231,13 @@ describe("TWAMM", function () {
 
                 //pool is balanced, and both orders execute same amount in opposite directions,
                 //so we expect final balances to be roughly equal
-                expect(amountABought).to.be.closeTo(amountBBought, amountIn / 100)         
+                expect(amountABought).to.be.closeTo(amountBBought, amountIn / 100)
             });
 
             it("Swap amounts are consistent with twamm formula", async function () {
 
-                const tokenAIn = 10000;
-                const tokenBIn = 2000;
+                const tokenAIn = 1000000;
+                const tokenBIn = 200000;
                 await tokenA.transfer(addr1.address, tokenAIn);
                 await tokenB.transfer(addr2.address, tokenBIn);
                 await tokenA.connect(addr1).approve(twamm.address, tokenAIn);
@@ -242,15 +257,15 @@ describe("TWAMM", function () {
 
                 const finalAReserveExpected = (
                     Math.sqrt(k * tokenAIn / tokenBIn)
-                    * (Math.exp(exponent) + c) 
-                    / (Math.exp(exponent) - c) 
+                    * (Math.exp(exponent) + c)
+                    / (Math.exp(exponent) - c)
                 )
 
                 const finalBReserveExpected = k / finalAReserveExpected;
 
                 const tokenAOut = Math.abs(tokenAReserve - finalAReserveExpected + tokenAIn);
                 const tokenBOut = Math.abs(tokenBReserve - finalBReserveExpected + tokenBIn);
-                
+
                 //trigger long term orders
                 await twamm.connect(addr1).longTermSwapFromAToB(tokenAIn, 2);
                 await twamm.connect(addr2).longTermSwapFromBToA(tokenBIn, 2);
@@ -259,7 +274,7 @@ describe("TWAMM", function () {
                 await mineBlocks(22 * blockInterval)
                 await twamm.executeVirtualOrders();
 
-                //withdraw proceeds 
+                //withdraw proceeds
                 await twamm.connect(addr1).withdrawProceedsFromLongTermSwap(0);
                 await twamm.connect(addr2).withdrawProceedsFromLongTermSwap(1);
 
@@ -279,10 +294,10 @@ describe("TWAMM", function () {
 
             it("Multiple orders in both pools work as expected", async function () {
 
-                const amountIn = 10000;
+                const amountIn = 1000000;
                 await tokenA.transfer(addr1.address, amountIn);
                 await tokenB.transfer(addr2.address, amountIn);
-                
+
                 //trigger long term order
                 await tokenA.connect(addr1).approve(twamm.address, amountIn);
                 await tokenB.connect(addr2).approve(twamm.address, amountIn);
@@ -297,7 +312,7 @@ describe("TWAMM", function () {
                 await mineBlocks(6 * blockInterval)
                 await twamm.executeVirtualOrders();
 
-                //withdraw proceeds 
+                //withdraw proceeds
                 await twamm.connect(addr1).withdrawProceedsFromLongTermSwap(0);
                 await twamm.connect(addr2).withdrawProceedsFromLongTermSwap(1);
                 await twamm.connect(addr1).withdrawProceedsFromLongTermSwap(2);
@@ -308,15 +323,15 @@ describe("TWAMM", function () {
 
                 //pool is balanced, and orders execute same amount in opposite directions,
                 //so we expect final balances to be roughly equal
-                expect(amountABought).to.be.closeTo(amountBBought, amountIn / 100)         
+                expect(amountABought).to.be.closeTo(amountBBought, amountIn / 100)
             });
 
             it("Normal swap works as expected while long term orders are active", async function () {
 
-                const amountIn = 10000;
+                const amountIn = 1000000;
                 await tokenA.transfer(addr1.address, amountIn);
                 await tokenB.transfer(addr2.address, amountIn);
-                
+
                 //trigger long term order
                 await tokenA.connect(addr1).approve(twamm.address, amountIn);
                 await tokenB.connect(addr2).approve(twamm.address, amountIn);
@@ -329,7 +344,7 @@ describe("TWAMM", function () {
                 await mineBlocks(3 * blockInterval)
                 await twamm.executeVirtualOrders();
 
-                //withdraw proceeds 
+                //withdraw proceeds
                 await twamm.connect(addr1).withdrawProceedsFromLongTermSwap(0);
                 await twamm.connect(addr2).withdrawProceedsFromLongTermSwap(1);
 
@@ -338,19 +353,19 @@ describe("TWAMM", function () {
 
                 //pool is balanced, and both orders execute same amount in opposite directions,
                 //so we expect final balances to be roughly equal
-                expect(amountABought).to.be.closeTo(amountBBought, amountIn / 100)          
+                expect(amountABought).to.be.closeTo(amountBBought, amountIn / 100)
             });
         });
 
 
-        describe("Cancelling orders", function () { 
+        describe("Cancelling orders", function () {
 
             it("Order can be cancelled", async function () {
 
                 const amountIn = 100000;
                 await tokenA.transfer(addr1.address, amountIn);
                 await tokenA.connect(addr1).approve(twamm.address, amountIn);
-              
+
                 const amountABefore = await tokenA.balanceOf(addr1.address);
                 const amountBBefore = await tokenB.balanceOf(addr1.address);
 
@@ -371,7 +386,7 @@ describe("TWAMM", function () {
 
         });
 
-        describe("partial withdrawal", function () { 
+        describe("partial withdrawal", function () {
 
             it("proceeds can be withdrawn while order is still active", async function () {
 
@@ -387,10 +402,10 @@ describe("TWAMM", function () {
 
                 //move blocks forward, and execute virtual orders
                 await mineBlocks(3 * blockInterval)
-                
+
                 const beforeBalanceA = await tokenA.balanceOf(addr2.address);
                 const beforeBalanceB = await tokenB.balanceOf(addr2.address);
-                await twamm.connect(addr2).swapFromBToA(amountIn);
+                await twamm.connect(addr2).swapFromBToA(amountIn,0);
                 const afterBalanceA = await tokenA.balanceOf(addr2.address);
                 const afterBalanceB = await tokenB.balanceOf(addr2.address);
 
@@ -401,7 +416,7 @@ describe("TWAMM", function () {
 
         });
 
-            
+
     });
 });
 

@@ -51,7 +51,7 @@ async function main() {
 
         await twamm.provideInitialLiquidity(initialLiquidityProvided, initialLiquidityProvided);
 
-        const amountIn = ethers.BigNumber.from(10000);
+        const amountIn = ethers.BigNumber.from(tokensIn);
         await tokenA.transfer(addr1.address, amountIn);
         await tokenB.transfer(addr2.address, amountIn);
 
@@ -67,7 +67,7 @@ async function main() {
         await mineBlocks(numIntervals * blockInterval * 2)
         await twamm.executeVirtualOrders();
 
-        //withdraw proceeds 
+        //withdraw proceeds
         await twamm.connect(addr1).withdrawProceedsFromLongTermSwap(0);
         await twamm.connect(addr2).withdrawProceedsFromLongTermSwap(1);
 
