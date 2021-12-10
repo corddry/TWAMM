@@ -82,8 +82,8 @@ library LongTermOrdersLib {
         uint256 orderExpiry = self.orderBlockInterval * (numberOfBlockIntervals + 1) + lastExpiryBlock;
         uint256 sellingRate = amount / (orderExpiry - currentBlock);
         
-        uint256 sRateDecimal = (amount * 1000 / (orderExpiry - currentBlock)) % 1000; //First 3 digits of decimal to circumnavigate no floating point type
-        console.log("  sellingRate pre-cast: %d.%d, post-cast %d", sellingRate, sRateDecimal, sellingRate);
+        //uint256 sRateDecimal = (amount * 1000 / (orderExpiry - currentBlock)) % 1000; //First 3 digits of decimal to circumnavigate no floating point type
+        //console.log("  sellingRate pre-cast: %d.%d, post-cast %d", sellingRate, sRateDecimal, sellingRate);
 
         //add order to correct pool
         OrderPoolLib.OrderPool storage OrderPool = self.OrderPoolMap[from];

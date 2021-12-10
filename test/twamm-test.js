@@ -344,6 +344,28 @@ describe("TWAMM", function () {
                 await mineBlocks(3 * blockInterval)
                 await twamm.executeVirtualOrders();
 
+                // Execute swap during virtual orders
+                const amountInA = 1000000;
+				const tokenAReserve = await twamm.tokenAReserves();
+				const tokenBReserve = await twamm.tokenBReserves();
+				const expectedOutBeforeFees =
+					tokenBReserve
+						.mul(amountInA)
+						.div(tokenAReserve.add(amountInA));
+
+				//adjust for LP fee of 0.3%
+				const expectedOutput = expectedOutBeforeFees.mul(1000 - 3).div(1000);
+				const beforeBalanceB = await tokenB.balanceOf(owner.address);
+
+				var transactionInfo = await twamm.swapFromAToB(amountInA,expectedOutput);
+				const afterBalanceB = await tokenB.balanceOf(owner.address);
+				const actualOutput = afterBalanceB.sub(beforeBalanceB);
+                expect(actualOutput).to.eq(expectedOutput);
+
+                //move blocks forward, and execute virtual orders
+				await mineBlocks(3 * blockInterval)
+                await twamm.executeVirtualOrders();
+
                 //withdraw proceeds
                 await twamm.connect(addr1).withdrawProceedsFromLongTermSwap(0);
                 await twamm.connect(addr2).withdrawProceedsFromLongTermSwap(1);
@@ -351,9 +373,8 @@ describe("TWAMM", function () {
                 const amountABought = await tokenA.balanceOf(addr2.address);
                 const amountBBought = await tokenB.balanceOf(addr1.address);
 
-                //pool is balanced, and both orders execute same amount in opposite directions,
-                //so we expect final balances to be roughly equal
-                expect(amountABought).to.be.closeTo(amountBBought, amountIn / 100)
+                // half way extra A was sold into the pool, so we expect to get more A out than B
+                expect(amountABought+amountInA/100).to.be.gt(amountBBought);
             });
         });
 
