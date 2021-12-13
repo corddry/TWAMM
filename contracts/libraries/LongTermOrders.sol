@@ -12,6 +12,9 @@ import "hardhat/console.sol";
 library LongTermOrdersLib {
     using PRBMathSD59x18 for int256;
     using OrderPoolLib for OrderPoolLib.OrderPool;
+    
+    ///@notice fee for LP providers, 4 decimal places, i.e. 30 = 0.3%
+    uint256 public constant LP_FEE = 30;
 
     ///@notice information associated with a long term order 
     struct Order {
@@ -133,9 +136,9 @@ library LongTermOrdersLib {
     function executeVirtualTradesAndOrderExpiries(LongTermOrders storage self, mapping(address => uint256) storage reserveMap, uint256 blockNumber) private {
         
         //amount sold from virtual trades
-        uint256 blockNumberIncrement = blockNumber - self.lastVirtualOrderBlock;
-        uint256 tokenASellAmount = self.OrderPoolMap[self.tokenA].currentSalesRate * blockNumberIncrement;
-        uint256 tokenBSellAmount = self.OrderPoolMap[self.tokenB].currentSalesRate * blockNumberIncrement;
+        uint256 salesRateMultiplier = (blockNumber - self.lastVirtualOrderBlock)*(10000-LP_FEE)/10000;
+        uint256 tokenASellAmount = self.OrderPoolMap[self.tokenA].currentSalesRate * salesRateMultiplier;
+        uint256 tokenBSellAmount = self.OrderPoolMap[self.tokenB].currentSalesRate * salesRateMultiplier;
 
         //initial amm balance 
         uint256 tokenAStart = reserveMap[self.tokenA];

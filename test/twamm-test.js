@@ -177,13 +177,13 @@ describe("TWAMM", function () {
                 const amountInA = 10000000;
                 await tokenA.transfer(addr1.address, amountInA);
 
-                //expected output
+                //expected output minus fee
                 const tokenAReserve = await twamm.tokenAReserves();
                 const tokenBReserve = await twamm.tokenBReserves();
                 const expectedOut =
                     tokenBReserve
                         .mul(amountInA)
-                        .div(tokenAReserve.add(amountInA));
+                        .div(tokenAReserve.add(amountInA)).mul(10000-30).div(10000);
 
                 //trigger long term order
                 tokenA.connect(addr1).approve(twamm.address, amountInA);
