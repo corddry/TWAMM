@@ -2,9 +2,10 @@
 pragma solidity ^0.8.0;
 
 import "hardhat/console.sol";
-import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import "./ERC20/ERC20.sol";
 import "./libraries/LongTermOrders.sol";
 import "./libraries/ReentrancyGuard.sol";
+import "./interfaces/IUniswapV2Pair.sol";
 
 
 ///@notice TWAMM -- https://www.paradigm.xyz/2021/07/twamm/
@@ -226,5 +227,6 @@ contract TWAMM is ERC20,ReentrancyGuard {
         longTermOrders.executeVirtualOrdersUntilCurrentBlock(reserveMap);
     }
 
+    function DOMAIN_SEPERATOR() external
     
 }
