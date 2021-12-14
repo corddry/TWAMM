@@ -1,7 +1,7 @@
 {
   "name": "twamm",
   "version": "1.0.0",
-  "description": "",
+  "description": "An implementation of [TWAMM](https://www.paradigm.xyz/2021/07/twamm/), an AMM design by [@\\_Dave\\_\\_White\\_](https://twitter.com/_Dave__White_), [@danrobinson](https://twitter.com/danrobinson) and [@haydenzadams](https://twitter.com/haydenzadams). TWAMM allows market participants to efficiently execute large orders over multiple blocks.",
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
@@ -24,7 +24,11 @@
     "chai": "^4.3.4",
     "ethereum-waffle": "^3.4.0",
     "ethers": "^5.5.1",
-    "hardhat": "^2.6.7",
+    "hardhat": "^2.7.0",
     "prb-math": "^2.4.0"
-  }
+  },
+  "directories": {
+    "test": "test"
+  },
+  "keywords": []
 }
